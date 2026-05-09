@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>RouteX</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#080c14;--surface:#0e1420;--card:#131928;
+  --border:#1e2d45;--text:#e8edf5;--muted:#4a6080;
+  --accent:#38bdf8;--accent2:#818cf8;--green:#34d399;
+  --orange:#fb923c;
+}
+body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;min-height:100vh;overflow-x:hidden}
+
+/* grid bg */
+body::before{
+  content:'';position:fixed;inset:0;
+  background-image:linear-gradient(var(--border) 1px,transparent 1px),linear-gradient(90deg,var(--border) 1px,transparent 1px);
+  background-size:40px 40px;opacity:.3;pointer-events:none;z-index:0;
+}
+
+.wrap{position:relative;z-index:1;max-width:1100px;margin:0 auto;padding:2rem 1.5rem}
+
+/* header */
+header{display:flex;align-items:center;gap:12px;margin-bottom:2.5rem}
+.logo{font-size:26px;font-weight:700;letter-spacing:-1px}
+.logo span{color:var(--accent)}
+.tag{font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);border:1px solid var(--border);padding:3px 10px;border-radius:4px}
+
+/* layout */
+.layout{display:grid;grid-template-columns:340px 1fr;gap:1.5rem;align-items:start}
+
+/* panel */
+.panel{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:1.5rem}
+.panel h2{font-size:13px;font-weight:600;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;margin-bottom:1.2rem}
+
+label{font-size:12px;color:var(--muted);font-family:'DM Mono',monospace;display:block;margin-bottom:6px;letter-spacing:.05em}
+select{
+  width:100%;padding:10px 14px;
+  background:var(--surface);color:var(--text);
+  border:1px solid var(--border);border-radius:10px;
+  font-size:14px;font-family:'Syne',sans-serif;
+  margin-bottom:1rem;outline:none;cursor:pointer;
+  transition:border-color .2s;
+}
+select:focus{border-color:var(--accent)}
+
+.btn{
+  width:100%;padding:13px;
+  background:var(--accent);color:#080c14;
+  border:none;border-radius:10px;
+  font-size:14px;font-weight:700;font-family:'Syne',sans-serif;
+  cursor:pointer;letter-spacing:.05em;
+  transition:opacity .2s,transform .1s;
+}
+.btn:hover{opacity:.9}
+.btn:active{transform:scale(.98)}
+
+/* result box */
+#result{margin-top:1.2rem;display:none}
+.route-label{font-family:'DM Mono',monospace;font-size:12px;color:var(--muted);margin-bottom:6px}
+.route-path{font-size:15px;font-weight:600;color:var(--accent);line-height:1.6;word-break:break-word}
+.divider{border:none;border-top:1px solid var(--border);margin:1rem 0}
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.stat{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 14px}
+.stat-label{font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;margin-bottom:4px}
+.stat-val{font-size:20px;font-weight:700}
+.cost{color:var(--green)}
+.stops{color:var(--orange)}
+.err{color:#f87171;font-size:13px;font-family:'DM Mono',monospace}
+
+/* map panel */
+.map-panel{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:1.5rem;min-height:480px}
+.map-panel h2{font-size:13px;font-weight:600;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;margin-bottom:1rem}
+#map-svg{width:100%;height:420px}
+
+/* city dots */
+.city-dot{cursor:pointer;transition:r .2s}
+.city-dot:hover{r:7}
+.city-label{font-family:'DM Mono',monospace;font-size:10px;fill:var(--muted);pointer-events:none}
+.city-label.active{fill:var(--accent)}
+
+/* route line animation */
+.route-line{stroke-dasharray:8 4;animation:dash 1s linear infinite}
+@keyframes dash{to{stroke-dashoffset:-24}}
+
+/* algo badge */
+.algo{display:inline-flex;align-items:center;gap:6px;font-family:'DM Mono',monospace;font-size:11px;color:var(--accent2);border:1px solid var(--accent2);padding:4px 10px;border-radius:6px;margin-top:1rem;opacity:.7}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="logo">Route<span>X</span></div>
+    <div class="tag">Dijkstra's Algorithm</div>
+  </header>
+
+  <div class="layout">
+    <!-- left panel -->
+    <div>
+      <div class="panel">
+        <h2>Find Route</h2>
+        <label>FROM</label>
+        <select id="from"></select>
+        <label>TO</label>
+        <select id="to"></select>
+        <button class="btn" onclick="search()">FIND CHEAPEST ROUTE ↗</button>
+
+        <div id="result">
+          <hr class="divider"/>
+          <div class="route-label">CHEAPEST PATH</div>
+          <div class="route-path" id="route-path"></div>
+          <hr class="divider"/>
+          <div class="stats">
+            <div class="stat">
+              <div class="stat-label">TOTAL COST</div>
+              <div class="stat-val cost" id="cost-val"></div>
+            </div>
+            <div class="stat">
+              <div class="stat-label">STOPOVERS</div>
+              <div class="stat-val stops" id="stops-val"></div>
+            </div>
+          </div>
+          <div class="algo">⚡ O((V+E) log V) · Priority Queue</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- right map panel -->
+    <div class="map-panel">
+      <h2>India Route Map</h2>
+      <svg id="map-svg" viewBox="0 0 400 420">
+        <!-- simplified India outline -->
+        <path d="M120,20 L160,15 L200,20 L240,18 L280,30 L300,50 L310,80
+                 L320,110 L315,140 L320,170 L310,200 L300,230 L280,260
+                 L260,290 L240,310 L220,340 L200,370 L185,390 L175,380
+                 L160,360 L145,330 L130,300 L115,270 L100,240 L90,210
+                 L80,180 L75,150 L80,120 L85,90 L95,60 L110,40 Z"
+              fill="#0e1825" stroke="#1e3050" stroke-width="1.5"/>
+
+        <!-- flight edges (static) -->
+        <g id="edges" opacity="0.2" stroke="var(--muted)" stroke-width="1" fill="none">
+          <!-- drawn dynamically -->
+        </g>
+
+        <!-- active route lines -->
+        <g id="route-lines" fill="none"></g>
+
+        <!-- city dots + labels -->
+        <g id="cities"></g>
+      </svg>
+    </div>
+  </div>
+</div>
+
+<script>
+// city positions on the SVG map (approximate Indian geography)
+const cityPos={
+  "Delhi":      {x:175,y:75},
+  "Jaipur":     {x:145,y:100},
+  "Amritsar":   {x:145,y:50},
+  "Ahmedabad":  {x:115,y:135},
+  "Mumbai":     {x:120,y:185},
+  "Pune":       {x:130,y:205},
+  "Goa":        {x:130,y:245},
+  "Hyderabad":  {x:195,y:225},
+  "Bengaluru":  {x:185,y:270},
+  "Chennai":    {x:215,y:280},
+  "Kochi":      {x:180,y:315},
+  "Kolkata":    {x:265,y:145},
+  "Bhubaneswar":{x:250,y:195},
+};
+
+const flights=[
+  ["Delhi","Mumbai"],["Delhi","Hyderabad"],["Delhi","Kolkata"],
+  ["Delhi","Jaipur"],["Delhi","Amritsar"],
+  ["Mumbai","Bengaluru"],["Mumbai","Hyderabad"],["Mumbai","Goa"],
+  ["Mumbai","Pune"],["Mumbai","Ahmedabad"],
+  ["Hyderabad","Bengaluru"],["Hyderabad","Chennai"],
+  ["Bengaluru","Chennai"],["Bengaluru","Goa"],["Bengaluru","Kochi"],
+  ["Kolkata","Chennai"],["Kolkata","Bhubaneswar"],
+  ["Chennai","Kochi"],["Jaipur","Ahmedabad"],["Pune","Goa"]
+];
+
+// draw static edges
+const edgesG=document.getElementById('edges');
+flights.forEach(([a,b])=>{
+  if(!cityPos[a]||!cityPos[b]) return;
+  const line=document.createElementNS('http://www.w3.org/2000/svg','line');
+  line.setAttribute('x1',cityPos[a].x); line.setAttribute('y1',cityPos[a].y);
+  line.setAttribute('x2',cityPos[b].x); line.setAttribute('y2',cityPos[b].y);
+  edgesG.appendChild(line);
+});
+
+// draw city dots
+const citiesG=document.getElementById('cities');
+Object.entries(cityPos).forEach(([name,pos])=>{
+  const g=document.createElementNS('http://www.w3.org/2000/svg','g');
+
+  const circle=document.createElementNS('http://www.w3.org/2000/svg','circle');
+  circle.setAttribute('cx',pos.x); circle.setAttribute('cy',pos.y);
+  circle.setAttribute('r',4); circle.setAttribute('fill','#1e3050');
+  circle.setAttribute('stroke','var(--muted)'); circle.setAttribute('stroke-width','1');
+  circle.setAttribute('class','city-dot'); circle.setAttribute('id','dot-'+name);
+
+  const text=document.createElementNS('http://www.w3.org/2000/svg','text');
+  text.setAttribute('x',pos.x+7); text.setAttribute('y',pos.y+4);
+  text.setAttribute('class','city-label'); text.setAttribute('id','lbl-'+name);
+  text.textContent=name;
+
+  g.appendChild(circle); g.appendChild(text);
+  citiesG.appendChild(g);
+});
+
+// load cities into dropdowns
+fetch('http://localhost:8080/cities')
+  .then(r=>r.text())
+  .then(data=>{
+    let cities=data.split(',').sort();
+    let from=document.getElementById('from');
+    let to=document.getElementById('to');
+    cities.forEach(c=>{
+      from.innerHTML+=`<option>${c}</option>`;
+      to.innerHTML+=`<option>${c}</option>`;
+    });
+    to.selectedIndex=1;
+  });
+
+function search(){
+  const from=document.getElementById('from').value;
+  const to=document.getElementById('to').value;
+  const box=document.getElementById('result');
+
+  if(from===to){
+    box.style.display='block';
+    box.innerHTML='<p class="err">⚠ From and To cannot be the same city.</p>';
+    return;
+  }
+
+  fetch(`http://localhost:8080/search?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`)
+    .then(r=>r.text())
+    .then(data=>{
+      box.style.display='block';
+
+      if(data==='NOTFOUND'||data==='NOROUTE'){
+        box.innerHTML='<p class="err">❌ No route found between these cities.</p>';
+        clearMap();
+        return;
+      }
+
+      // parse: "Delhi,Mumbai,Chennai|2|8500"
+      const parts=data.split('|');
+      const cities=parts[0].split(',');
+      const stops=parseInt(parts[1]);
+      const cost=parseInt(parts[2]);
+
+      // update UI
+      document.getElementById('route-path').textContent=cities.join(' → ');
+      document.getElementById('cost-val').textContent='₹'+cost.toLocaleString('en-IN');
+      document.getElementById('stops-val').textContent=stops;
+
+      // update map
+      drawRoute(cities);
+    });
+}
+
+function clearMap(){
+  document.getElementById('route-lines').innerHTML='';
+  // reset all dots
+  document.querySelectorAll('.city-dot').forEach(d=>{
+    d.setAttribute('fill','#1e3050');
+    d.setAttribute('stroke','var(--muted)');
+  });
+  document.querySelectorAll('.city-label').forEach(l=>l.classList.remove('active'));
+}
+
+function drawRoute(cities){
+  clearMap();
+  const rl=document.getElementById('route-lines');
+
+  // highlight route lines
+  for(let i=0;i<cities.length-1;i++){
+    const a=cityPos[cities[i]];
+    const b=cityPos[cities[i+1]];
+    if(!a||!b) continue;
+
+    // glow line (thick, low opacity)
+    const glow=document.createElementNS('http://www.w3.org/2000/svg','line');
+    glow.setAttribute('x1',a.x); glow.setAttribute('y1',a.y);
+    glow.setAttribute('x2',b.x); glow.setAttribute('y2',b.y);
+    glow.setAttribute('stroke','#38bdf8'); glow.setAttribute('stroke-width','6');
+    glow.setAttribute('opacity','0.15');
+    rl.appendChild(glow);
+
+    // animated dashed line
+    const line=document.createElementNS('http://www.w3.org/2000/svg','line');
+    line.setAttribute('x1',a.x); line.setAttribute('y1',a.y);
+    line.setAttribute('x2',b.x); line.setAttribute('y2',b.y);
+    line.setAttribute('stroke','#38bdf8'); line.setAttribute('stroke-width','1.5');
+    line.setAttribute('class','route-line');
+    rl.appendChild(line);
+  }
+
+  // highlight city dots on route
+  cities.forEach((city,i)=>{
+    const dot=document.getElementById('dot-'+city);
+    const lbl=document.getElementById('lbl-'+city);
+    if(dot){
+      dot.setAttribute('fill', i===0||i===cities.length-1 ? '#38bdf8' : '#fb923c');
+      dot.setAttribute('stroke', i===0||i===cities.length-1 ? '#38bdf8' : '#fb923c');
+      dot.setAttribute('r','6');
+    }
+    if(lbl) lbl.classList.add('active');
+  });
+}
+</script>
+</body>
+</html>
