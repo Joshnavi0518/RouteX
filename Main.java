@@ -31,7 +31,13 @@ public class Main {
         g.addFlight("Jaipur","Ahmedabad",1300);
         g.addFlight("Pune","Goa",1400);
 
-        HttpServer server=HttpServer.create(new InetSocketAddress(8080),0);
+        int port = Integer.parseInt(
+            System.getenv().getOrDefault("PORT", "8080")
+        );
+
+        HttpServer server = HttpServer.create(
+            new InetSocketAddress(port), 0
+        );
         server.createContext("/",e->serveFile(e,"index.html","text/html"));
         server.createContext("/cities",Main::handleCities);
         server.createContext("/search",Main::handleSearch);
@@ -39,7 +45,7 @@ public class Main {
 
         System.out.println("====================================");
         System.out.println("  RouteX running!");
-        System.out.println("  Open → http://localhost:8080");
+        System.out.println("  RouteX server started on port " + port);
         System.out.println("==================================== ");
     }
 
